@@ -258,22 +258,35 @@ double myvfunc(const std::vector<double> & theta, std::vector<double> & grad, vo
 
 int main()
 {
+    /*
+    Parameters
+    */
+    double safetyMargin = 1.60; // Safety margin to the cones
+    double relativeTolerance = 1e-7; // Relative tolerance for the optimization
+    nlopt::algorithm optAlgorithm = nlopt::LN_BOBYQA; // The algorithm to use
+    bool verbose = false; // Print stuff to the terminal
+
+    std::string trackName = "track1.csv"; // The name of the track to use
+
+
     // Load the cones from the csv file
-    std::vector<std::vector<Point>> coneMatrix = get_path("test3.csv");
+    std::vector<std::vector<Point>> coneMatrix = get_path(trackName);
     int numberOfOptimizationVariables = coneMatrix.size();
     std::cout << "Number of cones: " << coneMatrix.size() << std::endl;
 
 
     // Initialize the optimization data
-    OptimizationData optiData = {coneMatrix, 1.60};
+    OptimizationData optiData = {coneMatrix, safetyMargin};
     std::cout << "Optimization data initialized" << std::endl;
-    std::cout << "Safety margin: " << optiData.safetyMargin << std::endl;
+    std::cout << "Safety margin: " << optiData.safetyMargin << " m" << std::endl;
 
-    std::cout << "Cones: " << std::endl;
-    for (auto cones : optiData.coneMatrix) {
-        std::cout << "  (" << cones[0].x << ", " << cones[0].y << ") \t";
-        std::cout << "  (" << cones[1].x << ", " << cones[1].y << ") ";
-        std::cout << std::endl;
+    if (verbose) {
+        std::cout << "Cones: " << std::endl;
+        for (auto cones : optiData.coneMatrix) {
+            std::cout << "  (" << cones[0].x << ", " << cones[0].y << ") \t";
+            std::cout << "  (" << cones[1].x << ", " << cones[1].y << ") ";
+            std::cout << std::endl;
+        }
     }
 
 ////////////////////////////////////////////////////////////////////////
@@ -309,21 +322,15 @@ int main()
     */
 
     // Initialize the optimization object
-    nlopt::opt opt(nlopt::LN_BOBYQA, numberOfOptimizationVariables);
-    std::cout << "Optimization object initialized" << std::endl;
+    nlopt::opt opt(optAlgorithm, numberOfOptimizationVariables);
+    std::cout << "Optimization object initialized as " << opt.get_algorithm_name() << std::endl;
 
     // Set the lower bounds, to -1
-    std::vector<double> lowerBound(numberOfOptimizationVariables);
-    for (size_t i = 0; i < lowerBound.size(); ++i) {
-        lowerBound[i] = -1;
-    }
+    std::vector<double> lowerBound(numberOfOptimizationVariables, -1);
     opt.set_lower_bounds(lowerBound);
 
     // Set the upper bounds, to 1
-    std::vector<double> upperBound(numberOfOptimizationVariables);
-    for (size_t i = 0; i < upperBound.size(); ++i) {
-        upperBound[i] = 1;
-    }
+    std::vector<double> upperBound(numberOfOptimizationVariables, 1);
     opt.set_upper_bounds(upperBound);
 
     // Set the objective function
@@ -332,22 +339,20 @@ int main()
     // Set the tolerance
     //opt.set_xtol_rel(1e-10);
     //opt.set_ftol_abs(1e-10);
-    opt.set_ftol_rel(1e-7);
+    opt.set_ftol_rel(relativeTolerance);
 
     //opt.set_stopval(0.099357);
 
     // Initialize the optimization variables (Guess)
-    std::vector<double> theta(numberOfOptimizationVariables);
-    for (size_t i = 0; i < theta.size(); ++i) {
-        theta[i] = 0;
-    }
+    std::vector<double> theta(numberOfOptimizationVariables, 0);
+    //TODO: Make a function where you can set the guess
 
     double minf;
 
     double curvatureBefore = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
 
     try {
-        std::cout << "Starting optimization" << std::endl;
+        std::cout << "\nStarting optimization" << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
 
         nlopt::result result = opt.optimize(theta, minf);
@@ -355,25 +360,29 @@ int main()
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
 
-        std::cout << "Optimization finished" << std::endl;
-        std::cout << "Found minimum at : ";
-        for (double t : theta) {
-            std::cout << t << ", ";
-        }
-        std::cout << std::endl;
+        std::cout << "Optimization finished!!\n" << std::endl;
 
-        std::cout << "##Elapsed time: " << elapsed.count() << " s" << std::endl;
+        if (verbose) {
+            std::cout << "Found minimum at : ";
+            for (double t : theta) {
+                std::cout << t << ", ";
+            }
+            std::cout << "\n" << std::endl;
+        }
+
+        std::cout << "Elapsed time: " << elapsed.count() << " s" << std::endl;
         std::cout << "Number of evaluations: " << opt.get_numevals() << std::endl;
 
-        std::cout << "Obj func value " << std::setprecision(5) << minf << std::endl;
+        std::cout << "Obj func value " << std::setprecision(5) << minf << "\n" << std::endl;
+
+        double curvatureAfter = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
+
+        std::cout << "Curvature before: " << curvatureBefore << std::endl;
+        std::cout << "Curvature after: " << curvatureAfter << std::endl;
+        std::cout << "Curvature difference: " << curvatureBefore - curvatureAfter << std::endl;
     } catch (std::exception & e) {
         std::cout << "nlopt failed: " << e.what() << std::endl;
     }
-
-    double curvatureAfter = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
-
-    std::cout << "Curvature before: " << curvatureBefore << std::endl;
-    std::cout << "Curvature after: " << curvatureAfter << std::endl;
 
     return 0;
 }
