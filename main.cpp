@@ -195,15 +195,42 @@ double totalCurvatureObjective(
     // Calculate the curvature
     std::vector<double> curvature(theta.size() - 2);
     for (size_t i = 1; i < theta.size() - 1; ++i) {
-        curvature[i] =
+        curvature[i - 1] =
           getCurvature(midPointMatrix[i - 1], midPointMatrix[i], midPointMatrix[i + 1]);
     }
 
     // Calculate the cost function
     double costFun = 0.0;
-    for (double curv : curvature) {
-        // Take the square of the curvature
-        costFun += curv * curv;
+    for (size_t i = 0; i < curvature.size(); ++i) {
+        costFun += curvature[i] * curvature[i];
+    }
+
+    return costFun;
+}
+
+double totalCurvature(
+    const std::vector<double> & theta,
+    const std::vector<std::vector<Point>> & coneMatrix,
+    double safetyMargin)
+{
+    // Calculate the midpoint of each pair of cones
+    std::vector<Point> midPointMatrix(coneMatrix.size());
+
+    for (size_t i = 0; i < theta.size(); ++i) {
+        midPointMatrix[i] = getMidpoint(coneMatrix[i][0], coneMatrix[i][1], theta[i], safetyMargin);
+    }
+
+    // Calculate the curvature
+    std::vector<double> curvature(theta.size() - 2);
+    for (size_t i = 1; i < theta.size() - 1; ++i) {
+        curvature[i - 1] =
+          getCurvature(midPointMatrix[i - 1], midPointMatrix[i], midPointMatrix[i + 1]);
+    }
+
+    // Calculate the cost function
+    double costFun = 0.0;
+    for (size_t i = 0; i < curvature.size(); ++i) {
+        costFun += curvature[i];
     }
 
     return costFun;
@@ -232,13 +259,13 @@ double myvfunc(const std::vector<double> & theta, std::vector<double> & grad, vo
 int main()
 {
     // Load the cones from the csv file
-    std::vector<std::vector<Point>> coneMatrix = get_path("test.csv");
+    std::vector<std::vector<Point>> coneMatrix = get_path("test3.csv");
     int numberOfOptimizationVariables = coneMatrix.size();
     std::cout << "Number of cones: " << coneMatrix.size() << std::endl;
 
 
     // Initialize the optimization data
-    OptimizationData optiData = {coneMatrix, 0.5};
+    OptimizationData optiData = {coneMatrix, 1.60};
     std::cout << "Optimization data initialized" << std::endl;
     std::cout << "Safety margin: " << optiData.safetyMargin << std::endl;
 
@@ -249,8 +276,40 @@ int main()
         std::cout << std::endl;
     }
 
+////////////////////////////////////////////////////////////////////////
+    /* Tested algorithms 1
+    Seting the stopval to 0.099357 and testing on test.csv
+    Local derivative free algorithms
+    LN_COBYLA - 44.1387 s
+    LN_BOBYQA - 0.45278 s
+    LN_NEWUOA - roundoff error
+    LN_NEWUOA_BOUND - To long...
+    LN_PRAXIS - did not converge to the right value, but extremely fast
+    LN_NELDERMEAD - 0.145483 s
+    LN_SBPLX - 1.02695 s
+
+    Global derivative free algorithms
+    GN_CRS2_LM - 0.945763 s
+    GN_DIRECT (all varaitions) - To long...
+    GN_ORIG_DIRECT_L - did not converge to the right value
+    GN_ESCH - To long...
+    GN_ISRES - To long...
+    GN_MLSL - Core dumped
+    GN_MLSL_LDS - Core dumped
+    */
+////////////////////////////////////////////////////////////////////////
+    /* Summary
+    - LN_PRAXIS is lightning fast, and could work, but will seldom converge to the "right value".
+      It does not listen to the stopval. This is more useful to smooth the path, but keep it as
+      close to the original as possible.
+    - GN_CRS2_LM is a global derivative free algorithm that is very fast if you use opt.set_ftol_rel(1e-7)
+        and opt.set_ftol_abs(1e-7). It is also very accurate.
+    - LN_BOBYQA is a fast and accurate local derivative free algorithm. It also works very well with
+        opt.set_ftol_rel(1e-7).
+    */
+
     // Initialize the optimization object
-    nlopt::opt opt(nlopt::LN_COBYLA, numberOfOptimizationVariables);
+    nlopt::opt opt(nlopt::LN_BOBYQA, numberOfOptimizationVariables);
     std::cout << "Optimization object initialized" << std::endl;
 
     // Set the lower bounds, to -1
@@ -271,7 +330,11 @@ int main()
     opt.set_min_objective(myvfunc, &optiData);
 
     // Set the tolerance
-    opt.set_xtol_rel(1e-4);
+    //opt.set_xtol_rel(1e-10);
+    //opt.set_ftol_abs(1e-10);
+    opt.set_ftol_rel(1e-7);
+
+    //opt.set_stopval(0.099357);
 
     // Initialize the optimization variables (Guess)
     std::vector<double> theta(numberOfOptimizationVariables);
@@ -280,6 +343,8 @@ int main()
     }
 
     double minf;
+
+    double curvatureBefore = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
 
     try {
         std::cout << "Starting optimization" << std::endl;
@@ -293,16 +358,22 @@ int main()
         std::cout << "Optimization finished" << std::endl;
         std::cout << "Found minimum at : ";
         for (double t : theta) {
-            std::cout << t << " ";
+            std::cout << t << ", ";
         }
         std::cout << std::endl;
 
-        std::cout << "Elapsed time: " << elapsed.count() << " s" << std::endl;
+        std::cout << "##Elapsed time: " << elapsed.count() << " s" << std::endl;
+        std::cout << "Number of evaluations: " << opt.get_numevals() << std::endl;
 
         std::cout << "Obj func value " << std::setprecision(5) << minf << std::endl;
     } catch (std::exception & e) {
         std::cout << "nlopt failed: " << e.what() << std::endl;
     }
+
+    double curvatureAfter = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
+
+    std::cout << "Curvature before: " << curvatureBefore << std::endl;
+    std::cout << "Curvature after: " << curvatureAfter << std::endl;
 
     return 0;
 }
