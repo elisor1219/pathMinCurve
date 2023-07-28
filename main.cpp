@@ -8,6 +8,7 @@
 #include <cmath>
 #include <iomanip>
 #include <chrono>
+#include <iomanip>
 
 struct Point
 {
@@ -256,6 +257,42 @@ double myvfunc(const std::vector<double> & theta, std::vector<double> & grad, vo
     return totalCurvatureObjective(theta, coneMatrix, safetyMargin);
 }
 
+
+void saveThetaToFile(const std::vector<double> & theta, std::string trackName, double safetyMargin)
+{
+    // Create a folder named "results" if it does not exist
+    if (system("mkdir -p results") != 0) {
+        std::cerr << "Error creating folder results" << std::endl;
+        exit(1);
+    }
+    std::string folderName = "results/";
+
+    // Get the current time as YYYYMMDD_HHMMSS
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::stringstream ss;
+    ss << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S");
+    std::string time = ss.str();
+
+    // Create the file name
+    std::string fileName = folderName + trackName + "_" + time + ".csv";
+    std::ofstream file(fileName);
+
+    if (!file.is_open()) {
+        std::cerr << "Error opening file " << fileName << std::endl;
+        exit(1);
+    }
+
+    // Create the headers
+    file << "optimized_theta" << "," << "safety_margin" << std::endl;
+
+    for (double t : theta) {
+        file << t << "," << safetyMargin << std::endl;
+    }
+
+    file.close();
+}
+
 int main()
 {
     /*
@@ -266,11 +303,12 @@ int main()
     nlopt::algorithm optAlgorithm = nlopt::LN_BOBYQA; // The algorithm to use
     bool verbose = false; // Print stuff to the terminal
 
-    std::string trackName = "track1.csv"; // The name of the track to use
+    std::string trackName = "track1"; // The name of the track to use
 
 
     // Load the cones from the csv file
-    std::vector<std::vector<Point>> coneMatrix = get_path(trackName);
+    std::string trackPath = "tracks/" + trackName + ".csv";
+    std::vector<std::vector<Point>> coneMatrix = get_path(trackPath);
     int numberOfOptimizationVariables = coneMatrix.size();
     std::cout << "Number of cones: " << coneMatrix.size() << std::endl;
 
@@ -351,8 +389,8 @@ int main()
 
     double curvatureBefore = totalCurvature(theta, coneMatrix, optiData.safetyMargin);
 
+    std::cout << "\nStarting optimization" << std::endl;
     try {
-        std::cout << "\nStarting optimization" << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
 
         nlopt::result result = opt.optimize(theta, minf);
@@ -382,7 +420,11 @@ int main()
         std::cout << "Curvature difference: " << curvatureBefore - curvatureAfter << std::endl;
     } catch (std::exception & e) {
         std::cout << "nlopt failed: " << e.what() << std::endl;
+        std::cout << "Exiting..." << std::endl;
+        exit(1);
     }
+
+    saveThetaToFile(theta, trackName, safetyMargin);
 
     return 0;
 }
