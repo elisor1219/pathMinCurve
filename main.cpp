@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cmath>
 #include <iomanip>
+#include <chrono>
 
 struct Point
 {
@@ -102,11 +103,6 @@ std::vector<std::vector<Point>> get_path(std::string fileName)
 
 }
 
-typedef struct
-{
-    double a, b;
-} my_constraint_data;
-
 struct OptimizationData
 {
     const std::vector<std::vector<Point>> & coneMatrix;
@@ -137,7 +133,7 @@ inline double lengthOfVector(const Point & point)
 */
 double areaOfPoints(const Point & P1, const Point & P2, const Point & P3)
 {
-    return abs((P1.x * (P2.y - P3.y)) + (P2.x * (P3.y - P1.y)) + (P3.x * (P1.y - P2.y))) / 2;
+    return std::abs((P1.x * (P2.y - P3.y)) + (P2.x * (P3.y - P1.y)) + (P3.x * (P1.y - P2.y))) / 2;
 }
 
 /**
@@ -233,27 +229,12 @@ double myvfunc(const std::vector<double> & theta, std::vector<double> & grad, vo
     return totalCurvatureObjective(theta, coneMatrix, safetyMargin);
 }
 
-double myvconstraint(const std::vector<double> & x, std::vector<double> & grad, void * data)
-{
-    my_constraint_data * d = reinterpret_cast<my_constraint_data *>(data);
-    double a = d->a, b = d->b;
-
-    if (!grad.empty()) {
-        std::cout << "ERROR: Gradient not possible" << std::endl;
-    }
-
-    return (a * x[0] + b) * (a * x[0] + b) * (a * x[0] + b) - x[1];
-}
-
 int main()
 {
     // Load the cones from the csv file
     std::vector<std::vector<Point>> coneMatrix = get_path("test.csv");
     int numberOfOptimizationVariables = coneMatrix.size();
     std::cout << "Number of cones: " << coneMatrix.size() << std::endl;
-
-    std::cout << areaOfPoints({0, 0}, {1, 1}, {1, 0}) << std::endl;
-    exit(1);
 
 
     // Initialize the optimization data
@@ -289,11 +270,7 @@ int main()
     // Set the objective function
     opt.set_min_objective(myvfunc, &optiData);
 
-    //my_constraint_data data[2] = {{2, 0}, {-1, 1}};
-
-    //opt.add_inequality_constraint(myvconstraint, &data[0], 1e-8);
-    //opt.add_inequality_constraint(myvconstraint, &data[1], 1e-8);
-
+    // Set the tolerance
     opt.set_xtol_rel(1e-4);
 
     // Initialize the optimization variables (Guess)
@@ -305,7 +282,14 @@ int main()
     double minf;
 
     try {
+        std::cout << "Starting optimization" << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
+
         nlopt::result result = opt.optimize(theta, minf);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+
         std::cout << "Optimization finished" << std::endl;
         std::cout << "Found minimum at : ";
         for (double t : theta) {
@@ -313,16 +297,12 @@ int main()
         }
         std::cout << std::endl;
 
-        std::cout << std::setprecision(10) << minf << std::endl;
+        std::cout << "Elapsed time: " << elapsed.count() << " s" << std::endl;
+
+        std::cout << "Obj func value " << std::setprecision(5) << minf << std::endl;
     } catch (std::exception & e) {
         std::cout << "nlopt failed: " << e.what() << std::endl;
     }
-
-    // Calculate the curvature of the path to compare with the optimization
-    double calculatedCurvature = totalCurvatureObjective(
-        theta, optiData.coneMatrix,
-        optiData.safetyMargin);
-    std::cout << "Calculated curvature: " << calculatedCurvature << std::endl;
 
     return 0;
 }
