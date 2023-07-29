@@ -33,6 +33,6 @@ The optimization is done in c++ and the plotting is done in python.
 1. Clone this repository
 2. Run `cmake .` in the root directory
 3. Run `make` in the root directory
-4. Run the executable `./main.out` (A new folder called `results` should appear)
+4. Run the executable `./curvature_minimizer.out` (A new folder called `results` should appear)
 5. Run `python plotResults.py [path to csv file]` in the root directory, where `[path to csv file]` is the path to the csv file that was created in the `results` folder. (A new folder called `plots` should appear)
 
