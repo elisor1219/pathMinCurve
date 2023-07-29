@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.0)
 project(Curve_Minimization)
 
 # Add the source files to the project
-add_executable(main.out main.cpp)
+add_executable(minCurvOpti.out minCurvOpti.cpp curvature_minimizer.cpp)
 
 # Set the C++ standard to C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -20,4 +20,4 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lstdc++ -O3")
 find_package(NLopt REQUIRED)
 
 # Link the NLopt library to the target
-target_link_libraries(main.out PRIVATE NLopt::nlopt)
+target_link_libraries(minCurvOpti.out PRIVATE NLopt::nlopt)
