@@ -29,12 +29,14 @@ const
     }
     int numberOfOptimizationVariables = coneMatrix.size();
 
+    // TODO: Check the distance between the cones
+
     // Initialize the optimization object
     nlopt::opt opt(params_.optAlgorithm, numberOfOptimizationVariables);
     //TODO: Make so we can remove optimization variables
 
     // Initialize the optimization data
-    OptimizationData optiData = {coneMatrix, params_.safetyMargin};
+    OptimizationData optiData = {coneMatrix, params_.safetyMargin, params_.degree};
 
     if (params_.verbose) {
         std::cout << "Cones: " << std::endl;
@@ -116,26 +118,28 @@ d8888b. d8888b. d888888b db    db  .d8b.  d888888b d88888b
 */
 
 double CurvatureMinimizer::objective_function(
-    const std::vector<double> & theta, std::vector<double> & grad, void * my_func_data)
+    const std::vector<double> & theta, std::vector<double> & grad, void * optiData)
 {
     if (!grad.empty()) {
         std::cout << "ERROR: Gradient not possible" << std::endl;
     }
 
-    // Cast my_func_data to the OptimizationData pointer
-    OptimizationData * data = static_cast<OptimizationData *>(my_func_data);
+    // Cast optiData to the OptimizationData pointer
+    OptimizationData * data = static_cast<OptimizationData *>(optiData);
 
     // Access the coneMatrix and safetyMargin from the data struct
     const std::vector<std::vector<Point>> & coneMatrix = data->coneMatrix;
     double safetyMargin = data->safetyMargin;
+    double degree = data->degree;
 
-    return cost_function(theta, coneMatrix, safetyMargin);
+    return cost_function(theta, coneMatrix, safetyMargin, degree);
 }
 
 double CurvatureMinimizer::cost_function(
     const std::vector<double> & theta,
     const std::vector<std::vector<Point>> & coneMatrix,
-    const double safetyMargin)
+    const double safetyMargin,
+    const double degree)
 {
     // Calculate the curvature over the path
     std::vector<double> curvature = calculate_curvature_over_path(theta, coneMatrix, safetyMargin);
@@ -143,7 +147,7 @@ double CurvatureMinimizer::cost_function(
     // Calculate the cost as the sum of the squared curvature
     double cost = 0.0;
     for (size_t i = 0; i < curvature.size(); i++) {
-        cost += curvature[i] * curvature[i];
+        cost += pow(curvature[i], degree);
     }
 
     return cost;

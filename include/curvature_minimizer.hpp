@@ -14,13 +14,17 @@ struct CurvatureMinimizerParams
     double safetyMargin; // Safety margin to the cones
     double relativeTolerance; // Relative tolerance for the optimization
     nlopt::algorithm optAlgorithm; // The algorithm to use
+    double degree; // This is what degree to use in the cost function (1 = sum of curvature, 2 = sum of curvature squared)
+                   // Higher = follow the path more closely
+                   // Lower = Straighter lines
 
 
     CurvatureMinimizerParams()
       : verbose{false},
         safetyMargin{1.6},
         relativeTolerance{1e-7},
-        optAlgorithm{nlopt::LN_BOBYQA}
+        optAlgorithm{nlopt::LN_BOBYQA},
+        degree{1.7}
     {
     }
 };
@@ -30,6 +34,7 @@ struct OptimizationData
 {
     const std::vector<std::vector<Point>> & coneMatrix;
     double safetyMargin;
+    double degree;
 };
 
 class CurvatureMinimizer
@@ -46,12 +51,13 @@ private:
 
     static double objective_function(
         const std::vector<double> & theta, std::vector<double> & grad,
-        void * my_func_data);
+        void * optiData);
 
     static double cost_function(
         const std::vector<double> & theta,
         const std::vector<std::vector<Point>> & coneMatrix,
-        const double safetyMargin);
+        const double safetyMargin,
+        const double degree);
 
     static double sum_of_curvature(
         const std::vector<double> & theta,

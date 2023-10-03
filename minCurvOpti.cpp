@@ -23,8 +23,9 @@ int main()
     CurvatureMinimizerParams params;
     params.verbose = false;
     params.safetyMargin = 1.6;
-    params.relativeTolerance = 1e-7;
-    params.optAlgorithm = nlopt::LN_BOBYQA;
+    params.relativeTolerance = 1e-8;
+    params.degree = 2;
+    params.optAlgorithm = nlopt::GN_CRS2_LM;
 
     CurvatureMinimizer curvatureMinimizer(params);
     auto optimizedTheta = curvatureMinimizer.optimize_path(pathToOptimize);
